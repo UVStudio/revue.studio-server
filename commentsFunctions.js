@@ -2,12 +2,12 @@ const AWS = require('aws-sdk');
 const dynamo = new AWS.DynamoDB.DocumentClient();
 
 const commentsTableName = process.env.COMMENTS_TABLE_NAME;
-const videosTableName = process.env.VIDEOS_TABLE_NAME;
 const region = process.env.REGION;
 
 AWS.config.update({ region });
 
 exports.handler = async (event, context) => {
+  console.log('event log: ', event);
   let body;
   let statusCode = 200;
   let headers = {
@@ -16,15 +16,15 @@ exports.handler = async (event, context) => {
 
   try {
     switch (event.routeKey) {
-      case 'POST /comment/{videoId}':
+      case 'PUT /comment':
         const requestJSONPost = JSON.parse(event.body);
 
         await dynamo
-          .post(
+          .put(
             {
-              TableName: videosTableName,
+              TableName: commentsTableName,
               Item: {
-                id: requestJSONPost.commentId,
+                id: requestJSONPost.id,
                 userId: requestJSONPost.userId,
                 videoId: requestJSONPost.videoId,
                 comment: requestJSONPost.comment,
@@ -52,9 +52,9 @@ exports.handler = async (event, context) => {
         await dynamo
           .put(
             {
-              TableName: videosTableName,
+              TableName: commentsTableName,
               Item: {
-                id: requestJSONPut.commentId,
+                id: event.pathParameters.id,
                 userId: requestJSONPut.userId,
                 videoId: requestJSONPut.videoId,
                 comment: requestJSONPut.comment,
@@ -72,7 +72,7 @@ exports.handler = async (event, context) => {
           .promise();
 
         body = {
-          message: `Comment ID ${requestJSONPut.commentId} edited on DynamoDB.`,
+          message: `Comment ID ${params.Key.id} edited on DynamoDB.`,
         };
         break;
 
@@ -81,7 +81,7 @@ exports.handler = async (event, context) => {
           Key: {
             id: event.pathParameters.id,
           },
-          TableName: videosTableName,
+          TableName: commentsTableName,
         };
 
         await dynamo
@@ -100,7 +100,7 @@ exports.handler = async (event, context) => {
         break;
 
       //GET ALL COMMENTS BY VIDEO ID
-      case 'GET /comments/{id}':
+      case 'GET /comments/{videoId}':
         const getCommentsByVideoIdParams = {
           TableName: commentsTableName,
           IndexName: 'videoId-timeStamp-index',
@@ -144,24 +144,60 @@ exports.handler = async (event, context) => {
 
       //DELETE ALL COMMENTS UNDER A SINGLE VIDEO
       case 'DELETE /comments/{videoId}':
-        await dynamo
-          .batchWriteItem(
-            {
-              TableName: commentsTableName,
-              Key: {
-                projectId: event.pathParameters.videoId,
-              },
-            },
-            (err, data) => {
-              if (err) {
-                console.log('err: ', err);
-              } else {
-                console.log('success: ', data);
-              }
+        const deleteDDBCommentsParams = {
+          TableName: commentsTableName,
+          IndexName: 'videoId-timeStamp-index',
+          ExpressionAttributeValues: {
+            ':videoId': event.pathParameters.videoId,
+          },
+          KeyConditionExpression: 'videoId = :videoId',
+        };
+
+        const data = await dynamo
+          .query(deleteDDBCommentsParams, (err, data) => {
+            if (err) {
+              console.log('err: ', err);
+            } else {
+              console.log('success. Comments to delete: ', data);
             }
-          )
+          })
           .promise();
-        body = `Deleted all comments from video ${event.pathParameters.videoId}`;
+
+        const itemsToDelete = data.Items;
+
+        let deleteArray = [];
+        let itemsLeft = itemsToDelete.length;
+        let deleteArrayNumber = 0;
+
+        for (const i of itemsToDelete) {
+          deleteArray.push({ DeleteRequest: { Key: { id: i.id } } });
+          itemsLeft--;
+
+          if (deleteArray.length === 25 || itemsLeft === 0) {
+            deleteArrayNumber++;
+
+            let RequestItems = {};
+            RequestItems[commentsTableName] = deleteArray;
+
+            await dynamo
+              .batchWrite({ RequestItems }, (err, data) => {
+                if (err) {
+                  console.log('err: ', err);
+                } else {
+                  console.log('success: ', data);
+                }
+              })
+              .promise();
+
+            console.log(
+              `Batch ${deleteArrayNumber} deleted. Left items: ${itemsLeft}.`
+            );
+            deleteArray = []; //reset array
+          }
+        }
+        body = {
+          message: `Deleted all comments from video ${event.pathParameters.videoId}`,
+        };
         break;
 
       default:

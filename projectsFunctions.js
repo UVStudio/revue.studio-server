@@ -40,59 +40,61 @@ exports.handler = async (event, context) => {
           })
           .promise();
 
-        // delete videos table row(s)
-        const deleteDDBVideosParams = {
-          TableName: videosTableName,
-          IndexName: 'projectId-timeStamp-index',
-          ExpressionAttributeValues: {
-            ':projectId': event.pathParameters.id,
-          },
-          KeyConditionExpression: 'projectId = :projectId',
-        };
+        // delete videos table row(s) - no need to do this as S3 triggers DDB to remove rows
+        // through lambda function: s3DynamoRemove
 
-        const data = await dynamo
-          .query(deleteDDBVideosParams, (err, data) => {
-            if (err) {
-              console.log('err: ', err);
-            } else {
-              console.log('success: ', data);
-            }
-          })
-          .promise();
+        // const deleteDDBVideosParams = {
+        //   TableName: videosTableName,
+        //   IndexName: 'projectId-timeStamp-index',
+        //   ExpressionAttributeValues: {
+        //     ':projectId': event.pathParameters.id,
+        //   },
+        //   KeyConditionExpression: 'projectId = :projectId',
+        // };
 
-        const itemsToDelete = data.Items;
+        // const data = await dynamo
+        //   .query(deleteDDBVideosParams, (err, data) => {
+        //     if (err) {
+        //       console.log('err: ', err);
+        //     } else {
+        //       console.log('success: ', data);
+        //     }
+        //   })
+        //   .promise();
 
-        let deleteArray = [];
-        let itemsLeft = itemsToDelete.length;
-        let deleteArrayNumber = 0;
+        // const itemsToDelete = data.Items;
 
-        for (const i of itemsToDelete) {
-          deleteArray.push({ DeleteRequest: { Key: { id: i.id } } });
-          itemsLeft--;
+        // let deleteArray = [];
+        // let itemsLeft = itemsToDelete.length;
+        // let deleteArrayNumber = 0;
 
-          if (deleteArray.length === 25 || itemsLeft < 0) {
-            deleteArrayNumber++;
-            console.log(`Batch ${deleteArrayNumber} to be deleted.`);
+        // for (const i of itemsToDelete) {
+        //   deleteArray.push({ DeleteRequest: { Key: { id: i.id } } });
+        //   itemsLeft--;
 
-            let RequestItems = {};
-            RequestItems[videosTableName] = deleteArray;
+        //   if (deleteArray.length === 25 || itemsLeft < 0) {
+        //     deleteArrayNumber++;
+        //     console.log(`Batch ${deleteArrayNumber} to be deleted.`);
 
-            await dynamo
-              .batchWrite({ RequestItems }, (err, data) => {
-                if (err) {
-                  console.log('err: ', err);
-                } else {
-                  console.log('success: ', data);
-                }
-              })
-              .promise();
+        //     let RequestItems = {};
+        //     RequestItems[videosTableName] = deleteArray;
 
-            console.log(
-              `Batch ${deleteArrayNumber} deleted. Left items: ${itemsLeft}.`
-            );
-            deleteArray = []; //reset array
-          }
-        }
+        //     await dynamo
+        //       .batchWrite({ RequestItems }, (err, data) => {
+        //         if (err) {
+        //           console.log('err: ', err);
+        //         } else {
+        //           console.log('success: ', data);
+        //         }
+        //       })
+        //       .promise();
+
+        //     console.log(
+        //       `Batch ${deleteArrayNumber} deleted. Left items: ${itemsLeft}.`
+        //     );
+        //     deleteArray = []; //reset array
+        //   }
+        // }
 
         // remove all objects from S3 URL
         const s3EmptyFolder = async () => {
