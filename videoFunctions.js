@@ -102,6 +102,28 @@ exports.handler = async (event, context) => {
           .promise();
         break;
 
+      //GET VIDEOS BY USER ID
+      case 'GET /videos/user/{userId}':
+        const getVideosByUserIdParams = {
+          TableName: tableName,
+          IndexName: 'userId-timeStamp-index',
+          ExpressionAttributeValues: {
+            ':userId': event.pathParameters.userId,
+          },
+          KeyConditionExpression: 'userId = :userId',
+        };
+
+        body = await dynamo
+          .query(getVideosByUserIdParams, (err, data) => {
+            if (err) {
+              console.log('err: ', err);
+            } else {
+              console.log('success: ', data);
+            }
+          })
+          .promise();
+        break;
+
       case 'DELETE /videos/{projectId}':
         await dynamo
           .batchWriteItem(

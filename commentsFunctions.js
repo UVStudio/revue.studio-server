@@ -16,6 +16,7 @@ exports.handler = async (event, context) => {
 
   try {
     switch (event.routeKey) {
+      //post comment
       case 'PUT /comment':
         const requestJSONPost = JSON.parse(event.body);
 
@@ -46,33 +47,42 @@ exports.handler = async (event, context) => {
         };
         break;
 
+      //update comment by ID
       case 'PUT /comment/{id}':
         const requestJSONPut = JSON.parse(event.body);
 
+        const paramsPut = {
+          Key: {
+            id: event.pathParameters.id,
+          },
+          ExpressionAttributeNames: {
+            '#userId': 'userId',
+            '#videoId': 'videoId',
+            '#comment': 'comment',
+            '#timeStamp': 'timeStamp',
+          },
+          ExpressionAttributeValues: {
+            ':userId': requestJSONPut.userId,
+            ':videoId': requestJSONPut.videoId,
+            ':comment': requestJSONPut.comment,
+            ':timeStamp': requestJSONPut.timeStamp,
+          },
+          UpdateExpression:
+            'SET #userId = :userId, #videoId = :videoId, #comment = :comment, #timeStamp = :timeStamp',
+          TableName: commentsTableName,
+        };
         await dynamo
-          .put(
-            {
-              TableName: commentsTableName,
-              Item: {
-                id: event.pathParameters.id,
-                userId: requestJSONPut.userId,
-                videoId: requestJSONPut.videoId,
-                comment: requestJSONPut.comment,
-                timeStamp: requestJSONPut.timeStamp,
-              },
-            },
-            (err, data) => {
-              if (err) {
-                console.log('Error', err);
-              } else {
-                console.log('Success', data);
-              }
+          .update(paramsPut, (err, data) => {
+            if (err) {
+              console.log(err);
+            } else {
+              console.log(data);
             }
-          )
+          })
           .promise();
 
         body = {
-          message: `Comment ID ${params.Key.id} edited on DynamoDB.`,
+          message: `Comment ID ${paramsPut.Key.id} edited on DynamoDB.`,
         };
         break;
 
