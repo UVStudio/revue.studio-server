@@ -27,6 +27,7 @@ exports.handler = async (event, context) => {
               Item: {
                 id: requestJSONPost.id,
                 userId: requestJSONPost.userId,
+                username: requestJSONPost.username,
                 videoId: requestJSONPost.videoId,
                 comment: requestJSONPost.comment,
                 timeStamp: requestJSONPost.timeStamp,
@@ -57,18 +58,20 @@ exports.handler = async (event, context) => {
           },
           ExpressionAttributeNames: {
             '#userId': 'userId',
+            '#username': 'username',
             '#videoId': 'videoId',
             '#comment': 'comment',
             '#timeStamp': 'timeStamp',
           },
           ExpressionAttributeValues: {
             ':userId': requestJSONPut.userId,
+            ':username': requestJSONPut.username,
             ':videoId': requestJSONPut.videoId,
             ':comment': requestJSONPut.comment,
             ':timeStamp': requestJSONPut.timeStamp,
           },
           UpdateExpression:
-            'SET #userId = :userId, #videoId = :videoId, #comment = :comment, #timeStamp = :timeStamp',
+            'SET #userId = :userId, #username = :username, #videoId = :videoId, #comment = :comment, #timeStamp = :timeStamp',
           TableName: commentsTableName,
         };
         await dynamo
